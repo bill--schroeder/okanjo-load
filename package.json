@@ -1,0 +1,27 @@
+{
+  "name": "okanjo-load",
+  "version": "0.1.0",
+  "description": "Basic Okanjo product loader example",
+  "main": "./index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Okanjo/okanjo-load.git"
+  },
+    "keywords": [
+        "Okanjo",
+        "Ecommerce"
+    ],
+  "author": "Okanjo",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Okanjo/okanjo-load/issues"
+  },
+  "dependencies": {
+    "okanjo": "*",
+    "async": "~0.9.0",
+    "mime": "~1.2.11"
+  }
+}
