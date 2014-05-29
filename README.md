@@ -23,3 +23,9 @@ To use Okanjo API, you must have the following:
 
 The only other thing you may need to customize, is what happens after the userLogin call. If you are using an account with multiple stores, you may need to manually or programmatically configure which store ID to use. 
 
+## Running The Import
+
+To execute, run the following command:
+```sh
+node index.js
+```
