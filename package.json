@@ -10,10 +10,10 @@
     "type": "git",
     "url": "https://github.com/Okanjo/okanjo-load.git"
   },
-    "keywords": [
-        "Okanjo",
-        "Ecommerce"
-    ],
+  "keywords": [
+    "Okanjo",
+    "Ecommerce"
+  ],
   "author": "Okanjo",
   "license": "MIT",
   "bugs": {
@@ -22,6 +22,7 @@
   "dependencies": {
     "okanjo": "*",
     "async": "~0.9.0",
-    "mime": "~1.2.11"
+    "mime": "~1.2.11",
+    "sanitize-filename": "~1.0.1"
   }
 }

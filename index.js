@@ -37,9 +37,17 @@
 
 var okanjo = require('okanjo'),
     async = require('async'),
+    config = require('./config'),
+    // Upload dependencies
     path = require('path'),
     mime = require('mime'),
-    config = require('./config');
+    // Upload via URL dependencies
+    url = require('url'),
+    http = require('http'),
+    https = require('https'),
+    fs = require('fs'),
+    sanitize = require('sanitize-filename'),
+    crypto = require('crypto');
 
 
 /**
@@ -109,7 +117,8 @@ function getSourceProducts(callback) {
             price: 45,
             stock: "",
             images: [
-                __dirname + '/examples/webgl_cover.png'
+                path.join(__dirname, path.sep, 'images', path.sep, 'webgl_cover.png'), // e.g. portable local path, /images/webgl_cover.png
+                'http://www.packtpub.com/sites/default/files/9792OT_WebGL%20Game%20Development.jpg'
             ],
             category: 'Entertainment > Books',
             is_local_pickup: 0,
@@ -754,15 +763,103 @@ function processAndLoadProducts(products, callback) {
                     // NOTE: LOCAL FILE UPLOAD HERE - if you have a URI, perhaps you can programmatically get the image
                     // and then upload it like so. e.g. http.get(uri)
 
-                    var file = new okanjo.FileUpload(img, path.basename(img), mime.lookup(img), {
-                        purpose: okanjo.constants.mediaImagePurpose.product
-                    });
+                    var info = url.parse(img),
+                        cleanName = sanitize(path.basename(info.pathname)),
+                        tmpName = 'TMP-IMG-'+crypto.createHash('md5').update(img).digest('hex')+'-'+cleanName,
+                        tmpPath = path.join(__dirname, path.sep, 'images', path.sep, tmpName);
 
-                    api.postMedia().data(file).execute(function(err, res) {
-                        if (err) { console.log('Failed to upload image', err, res); cb(err); return; }
+                    if (info.protocol == 'http:' || info.protocol == 'https:') {
 
-                        cb && cb(null, res.data.id);
-                    });
+                        // See if the image was already downloaded
+                        if (fs.existsSync(tmpPath)) {
+
+                            //
+                            // Cached URL image upload
+                            //
+
+                            var cachedFile = new okanjo.FileUpload(tmpPath, tmpName, mime.lookup(tmpPath), {
+                                purpose: okanjo.constants.mediaImagePurpose.product
+                            });
+
+                            api.postMedia().data(cachedFile).execute(function(err, res) {
+                                if (err) { console.log('Failed to upload image', err, res); cb(err); return; }
+
+                                console.log(' > Uploaded cached image', tmpPath, res.data.id);
+                                cb && cb(null, res.data.id);
+                            });
+
+                        } else {
+
+                            //
+                            // Download it
+                            //
+
+                            var proto = info.protocol == 'https:' ? https : http;
+
+                            var dl = fs.createWriteStream(tmpPath);
+                            proto.get(img, function(res) {
+
+                                if(res.statusCode == 200) {
+
+                                    res.on('end', function() {
+
+                                        // See if we have a given filename
+                                        if (res.headers['content-disposition']) {
+                                            var match = res.headers['content-disposition'].match(/(?:filename="{0,1})(.*?)(?:"{0,1})$/)[1];
+                                            if (match) {
+                                                cleanName = sanitize(match[1]);
+                                            }
+                                        }
+
+                                        // See if we have a mime
+                                        var mime = 'unknown';
+                                        if (res.headers['content-type']) {
+                                            mime = res.headers['content-type'].split(';')[0];
+                                        }
+
+                                        var downloadedFile = new okanjo.FileUpload(tmpPath, tmpName, mime, {
+                                            purpose: okanjo.constants.mediaImagePurpose.product
+                                        });
+
+                                        api.postMedia().data(downloadedFile).execute(function(err, res) {
+                                            if (err) { console.log('Failed to upload image', err, res); cb(err); return; }
+
+                                            console.log(' > Uploaded url image', img, res.data.id);
+                                            cb && cb(null, res.data.id);
+                                        });
+
+                                    });
+
+                                } else {
+                                    console.log('Failed to download image. Server response:', res); cb(err); return;
+                                }
+
+                                res.pipe(dl);
+
+                            });
+                        }
+
+                    } else if (info.protocol == null) {
+
+                        //
+                        // LOCAL FILE PATH
+                        //
+
+                        var file = new okanjo.FileUpload(img, path.basename(img), mime.lookup(img), {
+                            purpose: okanjo.constants.mediaImagePurpose.product
+                        });
+
+                        api.postMedia().data(file).execute(function(err, res) {
+                            if (err) { console.log('Failed to upload image', err, res); cb(err); return; }
+
+                            console.log(' > Uploaded local image', img, res.data.id);
+                            cb && cb(null, res.data.id);
+                        });
+
+                    } else {
+                        console.error('Unknown image protocol or is not a HTTP/HTTPS URL or local file path?', img);
+                        callback && callback(new Error('Unknown image protocol or is not a HTTP/HTTPS URL or local file path: '+ img));
+                    }
 
                 }, function(err, media) {
                     if (err) { callback && callback(err); return; }
@@ -790,6 +887,7 @@ function processAndLoadProducts(products, callback) {
                         if (err) { callback && callback(err); return; }
 
                         if (res.status == okanjo.Response.Status.OK) {
+                            console.log(' > Uploaded product', res.data.id);
                             callback && callback(null, res.data);
                         } else {
                             console.error('Failed to post product. Response:', res);
