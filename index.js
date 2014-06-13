@@ -65,7 +65,7 @@ var okanjo = require('okanjo'),
  */
 function getSourceProducts(callback) {
 
-    var path = "data/product_with_category.csv";
+    var path = "data/ssi_products_full.csv";
 
     // var transform = function(p) {
     //     //TODO - apply transforms to raw spreadsheet data
