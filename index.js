@@ -47,7 +47,9 @@ var okanjo = require('okanjo'),
     https = require('https'),
     fs = require('fs'),
     sanitize = require('sanitize-filename'),
-    crypto = require('crypto');
+    crypto = require('crypto'),
+    request = require('request'),
+    csv = require('fast-csv');
 
 
 /**
@@ -63,6 +65,44 @@ var okanjo = require('okanjo'),
  */
 function getSourceProducts(callback) {
 
+    var path = "data/ssi_product_file_100.csv";
+
+    // var transform = function(p) {
+    //     //TODO - apply transforms to raw spreadsheet data
+    //     return {
+    //         //TODO - need to properly implement categories
+    //         category: "Art",
+    //         // The ID of the Okanjo store to add the product to
+    //         store_id: global_store_id || p.store_id || 0,
+
+    //         // Type of product (usually regular)
+    //         type: okanjo.constants.productType.regular,
+
+    //         // Basic info
+    //         title: p["Title"] || 'Product title',
+    //         description: p["Description"] || 'Product\nDescription',
+    //         price: p["Price"] || 10, // USD between 1 and 9000
+    //         stock: p["Quantity"] != null ? p["Quantity"] : 0, // Use empty string "" to indicate an on-demand (infinite stock) item
+
+    //         // Product condition - use brandNew or used
+    //         condition: okanjo.constants.productCondition.brandNew,
+
+    //         is_local_pickup = p["Local_Pickup_yes_or_no"] || 0;
+
+    //         // Generic free shipping option
+    //         is_free_shipping = p["Free_Shipping_yes_or_no"] || 0;
+    //     };
+    // };
+
+    var rows = [];
+    csv
+        .fromPath(path, {headers: true})
+        .on("record", function(data){
+            rows.push(data)
+        })
+        .on("end", function(data){
+            callback(null, rows);
+        });
     /************************
      * TODO: CUSTOMIZE THIS *
      ************************/
@@ -109,24 +149,24 @@ function getSourceProducts(callback) {
     // Here's a default example of what a row of data could look like
     //
     // TODO: Remove this
-    callback && callback(null, [
-        {
-            title: 'WebGL Game Development',
-            description: 'WebGL, the web implementation of Open GL, is a JavaScript API used to render interactive 3D graphics within any compatible web browser, without the need for plugins. It helps you create detailed, high-quality graphical 3D objects easily. WebGL elements can be mixed with other HTML elements and composites to create high-quality, interactive, creative, innovative graphical 3D objects.\n\n' +
-                'This book begins with collecting coins in Super Mario, killing soldiers in Contra, and then quickly evolves to working out strategies in World of Warcraft. You will be guided through creating animated characters, image processing, and adding effects as part of the web page canvas to the 2D/3D graphics. Pour life into your gaming characters and learn how to create special effects seen in the most powerful 3D games. Each chapter begins by showing you the underlying mathematics and its programmatic implementation, ending with the creation of a complete game scene to build a wonderful virtual world.\n\nISBN: 9781849699792',
-            price: 45,
-            stock: "",
-            images: [
-                path.join(__dirname, path.sep, 'images', path.sep, 'webgl_cover.png'), // e.g. portable local path, /images/webgl_cover.png
-                'http://www.packtpub.com/sites/default/files/9792OT_WebGL%20Game%20Development.jpg'
-            ],
-            category: 'Entertainment > Books',
-            is_local_pickup: 0,
-            is_free_shipping: 1,
-            tags: 'Games,WebGL,HTML5,JSON,Physics,JavaScript'.split(',')
+    // callback && callback(null, [
+    //     {
+    //         title: 'WebGL Game Development',
+    //         description: 'WebGL, the web implementation of Open GL, is a JavaScript API used to render interactive 3D graphics within any compatible web browser, without the need for plugins. It helps you create detailed, high-quality graphical 3D objects easily. WebGL elements can be mixed with other HTML elements and composites to create high-quality, interactive, creative, innovative graphical 3D objects.\n\n' +
+    //             'This book begins with collecting coins in Super Mario, killing soldiers in Contra, and then quickly evolves to working out strategies in World of Warcraft. You will be guided through creating animated characters, image processing, and adding effects as part of the web page canvas to the 2D/3D graphics. Pour life into your gaming characters and learn how to create special effects seen in the most powerful 3D games. Each chapter begins by showing you the underlying mathematics and its programmatic implementation, ending with the creation of a complete game scene to build a wonderful virtual world.\n\nISBN: 9781849699792',
+    //         price: 45,
+    //         stock: "",
+    //         images: [
+    //             path.join(__dirname, path.sep, 'images', path.sep, 'webgl_cover.png'), // e.g. portable local path, /images/webgl_cover.png
+    //             'http://www.packtpub.com/sites/default/files/9792OT_WebGL%20Game%20Development.jpg'
+    //         ],
+    //         category: 'Entertainment > Books',
+    //         is_local_pickup: 0,
+    //         is_free_shipping: 1,
+    //         tags: 'Games,WebGL,HTML5,JSON,Physics,JavaScript'.split(',')
 
-        }
-    ]);
+    //     }
+    // ]);
 
 }
 
@@ -157,6 +197,10 @@ function mapCategory(product, callback) {
      ************************/
 
     var id = (function(product) {
+
+        if(parseInt(product.category) !== NaN){
+            return product.category;
+        }
         switch(product.category) {
             case "Art": return 2;
             case "Art > Direct from the Artist": return 11;
@@ -206,7 +250,6 @@ function mapCategory(product, callback) {
             case "Art > Illustration": return 493;
             case "Art > Illustration > Other": return 494;
             case "Art > Illustration > Direct from the Artist": return 495;
-
             case "Collectibles": return 3;
             case "Collectibles > Cards": return 65;
             case "Collectibles > Cards > Baseball": return 96;
@@ -619,15 +662,21 @@ function processAndLoadProducts(products, callback) {
             type: okanjo.constants.productType.regular,
 
             // Basic info
-            title: p.title || 'Product title',
-            description: p.description || 'Product\nDescription',
-            price: p.price || 10, // USD between 1 and 9000
-            stock: p.stock != null ? p.stock : 20, // Use empty string "" to indicate an on-demand (infinite stock) item
+            title: p["Title"] || 'Product title',
+            //description: p["Description"] || 'Product\nDescription',
+            price: p["Price"] ? Math.ceil(p["Price"]) : 0, // USD between 1 and 9000
+            stock: p["Quantity"] != null ? p["Quantity"] : 0, // Use empty string "" to indicate an on-demand (infinite stock) item
 
             // Product condition - use brandNew or used
             condition: okanjo.constants.productCondition.brandNew
         };
 
+        //remove html from description
+        var regex = /(<([^>]+)>)/ig
+        productData.description = p["Description"].replace(regex, "");
+
+        //TODO - categories
+        productData.category = p["Cat_ID"];
 
         //
         // Required: Shipping options ---------------------------------------------------------------------------------
@@ -637,15 +686,12 @@ function processAndLoadProducts(products, callback) {
         // You can use either is_free_shipping OR shipping_options, not both.
 
         // Local pickup (zero cost, implies the buyer / seller will work out pickup time and location)
-        productData.is_local_pickup = p.is_local_pickup || 0;
+        productData.is_local_pickup = p["Local_Pickup_yes_or_no"] == "Yes" ? 1 : 0;
 
-        // Generic free shipping option
-        productData.is_free_shipping = p.is_free_shipping || 0;
+        // Generic free shipping option 
+        //TODO - all products are free shipping for now
+        productData.is_free_shipping = 1;
         // -or-
-//        productData.shipping_options = [
-//            { description: 'Snail Mail', price: 5 }, // Price in USD
-//            { description: 'FedEX Overnight', price: 100 }
-//        ];
 
 
         //
@@ -653,11 +699,11 @@ function processAndLoadProducts(products, callback) {
         //
 
         // Use these fields to specify the product's return policy
-        productData.return_policy = { id: 0 }; // Default return policy (no returns) or use a known ID for reuse
-//        productData.return_policy = { // Custom return policy
-//            name: 'Special Returns',
-//            policy: 'Terms of the special return policy here...'
-//        };
+        //productData.return_policy = { id: 0 }; // Default return policy (no returns) or use a known ID for reuse
+       productData.return_policy = { // Custom return policy
+           name: 'Special Returns',
+           policy: p["Return_Policy"]
+       };
 
 
         //
@@ -666,8 +712,10 @@ function processAndLoadProducts(products, callback) {
 
         // Use these fields to set what cause benefits from the sale of the item
         // Uncomment these fields if  cause / donation should be used
-//        productData.cause_id = 0;       // ID of the cause e.g. api.getCauses()
-//        productData.donation_perc = 0;  // A number ranging from 5 to 100, representing the percent donation of the sale
+
+        //TODO - need real cause_id 
+        productData.cause_id = 35861;       // ID of the cause e.g. api.getCauses()
+        productData.donation_perc = p["Percent_Donated"];  // A number ranging from 5 to 100, representing the percent donation of the sale
 
 
         //
@@ -679,12 +727,40 @@ function processAndLoadProducts(products, callback) {
 //            { name: 'WebGL' } // By tag name
 //        ];
 
-        // If tags were given on the row, add them by name
-        if (p.tags && p.tags.length > 0) {
-            productData.tags = [];
-            for(var i = 0, t= p.tags[i]; i < p.tags.length; i++) {
-                productData.tags.push({ name: t });
-            }
+        // // If tags were given on the row, add them by name
+        // if (p.tags && p.tags.length > 0) {
+        //     productData.tags = [];
+        //     for(var i = 0, t= p.tags[i]; i < p.tags.length; i++) {
+        //         productData.tags.push({ name: t });
+        //     }
+        // }
+
+        productData.meta = {
+            "vendor": "School Specialty",
+            "SKU": p["Tag_2"],
+            "UOM": p["Tag_3"]
+        };
+
+        console.log("meta data for product is " + JSON.stringify(productData.meta));
+
+        p.images = [
+            p["Main_Image_URL"]
+        ];
+
+        if(p["Image_URL_2"]) {
+            p.images.push(p["Image_URL_2"]);
+        }
+
+        if(p["Image_URL_3"]) {
+            p.images.push(p["Image_URL_3"]);
+        }
+
+        if(p["Image_URL_4"]) {
+            p.images.push(p["Image_URL_4"]);
+        }
+
+        if(p["Image_URL_5"]) {
+            p.images.push(p["Image_URL_5"]);
         }
 
         //
@@ -708,35 +784,24 @@ function processAndLoadProducts(products, callback) {
 
         // First, define the available dimension set
         // The order added to the object is how they will appear on the page
-        productData.dimensions = {
-            "Size": {
-                "Small":  { price_modifier: 0 },
-                "Large":  { price_modifier: 0 }
-            },
-            "Color": {
-                "Red":    { price_modifier: 0 },
-                "Purple": { price_modifier: 10 }
-            }
-        };
+        // productData.dimensions = {
+        //     "Size": {
+        //         "Small":  { price_modifier: 0 },
+        //         "Large":  { price_modifier: 0 }
+        //     },
+        //     "Color": {
+        //         "Red":    { price_modifier: 0 },
+        //         "Purple": { price_modifier: 10 }
+        //     }
+        // };
 
-        // Then setup stock permutations for every possible set
-        // Remember, variant keys must be sorted alphabetically
-        productData.variants = {};
-        productData.variants[okanjo.serialize({ "Size": "Small", "Color": "Red" }, true)] = { stock: 10 };
-        productData.variants[okanjo.serialize({ "Size": "Small", "Color": "Purple" }, true)] = { stock: 20 };
-        productData.variants[okanjo.serialize({ "Size": "Large", "Color": "Red" }, true)] = { stock: 30 };
-        productData.variants[okanjo.serialize({ "Size": "Large", "Color": "Purple" }, true)] = { stock: "" }; // Example with on-demand (infinite) stock
-
-
-        //
-        // Optional: Metadata -----------------------------------------------------------------------------------------
-        //
-
-        productData.meta = {
-            source: 'okanjo-load',
-            key: 'value'
-        };
-
+        // // Then setup stock permutations for every possible set
+        // // Remember, variant keys must be sorted alphabetically
+        // productData.variants = {};
+        // productData.variants[okanjo.serialize({ "Size": "Small", "Color": "Red" }, true)] = { stock: 10 };
+        // productData.variants[okanjo.serialize({ "Size": "Small", "Color": "Purple" }, true)] = { stock: 20 };
+        // productData.variants[okanjo.serialize({ "Size": "Large", "Color": "Red" }, true)] = { stock: 30 };
+        // productData.variants[okanjo.serialize({ "Size": "Large", "Color": "Purple" }, true)] = { stock: "" }; // Example with on-demand (infinite) stock
 
         (function(productData){
 
@@ -754,6 +819,7 @@ function processAndLoadProducts(products, callback) {
                 // Required: Media ------------------------------------------------------------------------------------
                 //
 
+
                 async.mapSeries(p.images, function(img, cb) {
 
                     //
@@ -765,8 +831,10 @@ function processAndLoadProducts(products, callback) {
 
                     var info = url.parse(img),
                         cleanName = sanitize(path.basename(info.pathname)),
-                        tmpName = 'TMP-IMG-'+crypto.createHash('md5').update(img).digest('hex')+'-'+cleanName,
-                        tmpPath = path.join(__dirname, path.sep, 'images', path.sep, tmpName);
+                        tmpName = 'TMP-IMG-'+crypto.createHash('md5').update(img).digest('hex')+'-'+cleanName+'.jpg';
+                        // tmpName = 'TMP-IMG-'+crypto.createHash('md5').update(img).digest('hex')+'.jpg';
+                    
+                    var tmpPath = path.join(__dirname, path.sep, 'images', path.sep, tmpName);
 
                     if (info.protocol == 'http:' || info.protocol == 'https:') {
 
@@ -784,6 +852,7 @@ function processAndLoadProducts(products, callback) {
                             api.postMedia().data(cachedFile).execute(function(err, res) {
                                 if (err) { console.log('Failed to upload image', err, res); cb(err); return; }
 
+                                if(res.status == 500) {console.log('Failed to upload image on line 849ish'); cb("Unable to upload image"); return;}
                                 console.log(' > Uploaded cached image', tmpPath, res.data.id);
                                 cb && cb(null, res.data.id);
                             });
@@ -796,46 +865,36 @@ function processAndLoadProducts(products, callback) {
 
                             var proto = info.protocol == 'https:' ? https : http;
 
+                            console.log(img);
+
                             var dl = fs.createWriteStream(tmpPath);
-                            proto.get(img, function(res) {
 
-                                if(res.statusCode == 200) {
+                            var r = request.get(img).pipe(dl);
 
-                                    res.on('end', function() {
+                            r.on("error", function(err){
+                                console.log('Failed to upload image', err); cb(err); return;
+                            });
 
-                                        // See if we have a given filename
-                                        if (res.headers['content-disposition']) {
-                                            var match = res.headers['content-disposition'].match(/(?:filename="{0,1})(.*?)(?:"{0,1})$/)[1];
-                                            if (match) {
-                                                cleanName = sanitize(match[1]);
-                                            }
-                                        }
+                            dl.on('finish', function(){
+                                //explicitly kill the stream if it hasn't closed yet
+                                dl.end();
 
-                                        // See if we have a mime
-                                        var mime = 'unknown';
-                                        if (res.headers['content-type']) {
-                                            mime = res.headers['content-type'].split(';')[0];
-                                        }
+                                var downloadedFile = new okanjo.FileUpload(tmpPath, tmpName, mime.lookup(tmpPath), {
+                                    purpose: okanjo.constants.mediaImagePurpose.product
+                                });
 
-                                        var downloadedFile = new okanjo.FileUpload(tmpPath, tmpName, mime, {
-                                            purpose: okanjo.constants.mediaImagePurpose.product
-                                        });
 
-                                        api.postMedia().data(downloadedFile).execute(function(err, res) {
-                                            if (err) { console.log('Failed to upload image', err, res); cb(err); return; }
+                                api.postMedia().data(downloadedFile).execute(function(err, res) {
+                                    console.log(res);
+                                    if (err) { console.log('Failed to upload image', err, res); cb(err); return; }
 
-                                            console.log(' > Uploaded url image', img, res.data.id);
-                                            cb && cb(null, res.data.id);
-                                        });
-
-                                    });
-
-                                } else {
-                                    console.log('Failed to download image. Server response:', res); cb(err); return;
-                                }
-
-                                res.pipe(dl);
-
+                                    if(res.status == 500) {
+                                        cb(null, 239327); 
+                                        return;
+                                    }
+                                    console.log(' > Uploaded url image', img, res.data.id);
+                                    cb && cb(null, res.data.id);
+                                });
                             });
                         }
 
@@ -850,7 +909,7 @@ function processAndLoadProducts(products, callback) {
                         });
 
                         api.postMedia().data(file).execute(function(err, res) {
-                            if (err) { console.log('Failed to upload image', err, res); cb(err); return; }
+                            if (err) { console.log('Failed to upload image line 970ish', err, res); cb(err); return; }
 
                             console.log(' > Uploaded local image', img, res.data.id);
                             cb && cb(null, res.data.id);
@@ -862,9 +921,10 @@ function processAndLoadProducts(products, callback) {
                     }
 
                 }, function(err, media) {
-                    if (err) { callback && callback(err); return; }
+                    if (err) { callback && callback(); return; }
 
                     // Media IDs of the uploaded images to use
+
                     productData.media = media;
 
                     // Which media ID to use as the default image / tile image
@@ -880,14 +940,17 @@ function processAndLoadProducts(products, callback) {
                     // * Comment-out the api.postProduct call
 
                     // Just return the product for testing
-//                    callback && callback(null, productData);
+                    // console.log(productData);
+                    // callback && callback(null, productData);
 
                     // Post the product for REAL
+                    
                     api.postProduct().data(productData).execute(function(err, res) {
                         if (err) { callback && callback(err); return; }
 
                         if (res.status == okanjo.Response.Status.OK) {
                             console.log(' > Uploaded product', res.data.id);
+                            console.log('Meta data for product is ' + JSON.stringify(res.data.meta));
                             callback && callback(null, res.data);
                         } else {
                             console.error('Failed to post product. Response:', res);
@@ -954,7 +1017,7 @@ api.userLogin().data(config.user).execute(function(err, res) {
             processAndLoadProducts(data, function(err, products) {
                 if (err) { console.error('Failed to map products', err); return; }
 
-                console.log('COMPLETED OKANJO PRODUCTS:', products);
+                //console.log('COMPLETED OKANJO PRODUCTS:', products);
                 console.log('DONE!');
                 process.exit(0);
 
