@@ -23,6 +23,7 @@
     "okanjo": "*",
     "async": "~0.9.0",
     "mime": "~1.2.11",
-    "sanitize-filename": "~1.0.1"
+    "sanitize-filename": "~1.0.1",
+    "fast-csv": "~0.4.0"
   }
 }
