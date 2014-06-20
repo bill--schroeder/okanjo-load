@@ -28,7 +28,7 @@ api.userLogin().data(config.user).execute(function(err, res) {
 
         // get all products for this store
         //TODO - build this url dynamically, possibly config driven
-        request.get("https://sandbox-api.okanjo.com/products?key=TEST-AKEfqKSWps6QpDLVuZChWim3&store_id=5170&page_size=900&signature=1506bd11cab07eb1b2c1907c24508646c600ddbb72b17285bd871812d0c9b687",
+        request.get(config.productData.deleteAllRoute,
         function(err, result, data) {
             if(result && result.body) {
                 var body = JSON.parse(result.body);
@@ -38,7 +38,7 @@ api.userLogin().data(config.user).execute(function(err, res) {
                         status: 7
                     };
                     api.putProductById(product.id).data(p).execute(function(err, res) {
-                        if (err) { callback && callback(err); return; }
+                        if (err) { console.log("err=" + JSON.stringify(err)); return; }
 
                         if (res.status == okanjo.Response.Status.OK) {
                             console.log('Delete issued for product ' + product.id );

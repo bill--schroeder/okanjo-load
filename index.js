@@ -720,9 +720,10 @@ function processAndLoadProducts(products, callback) {
         //TODO - need real cause_id 
         if (config.productData.causeId) {
             productData.cause_id = config.productData.causeId || '';       // ID of the cause e.g. api.getCauses()
-        }
-        if (p["Percent_Donated"]) {
-            productData.donation_perc = p["Percent_Donated"] || 0;  // A number ranging from 5 to 100, representing the percent donation of the sale
+
+            if (p["Percent_Donated"]) {
+                productData.donation_perc = p["Percent_Donated"] || 0;  // A number ranging from 5 to 100, representing the percent donation of the sale
+            }
         }
 
         //
