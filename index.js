@@ -49,8 +49,8 @@ var okanjo = require('okanjo'),
     sanitize = require('sanitize-filename'),
     crypto = require('crypto'),
     request = require('request'),
-    csv = require('fast-csv');
-
+    csv = require('fast-csv'),
+    _ = require('underscore');
 
 /**
  * This is where you should integrate with your data source to all the data you need to create products
@@ -65,7 +65,7 @@ var okanjo = require('okanjo'),
  */
 function getSourceProducts(callback) {
 
-    var path = "data/ssi_products_full.csv";
+    var path = config.productData.sourceFile;
 
     // var transform = function(p) {
     //     //TODO - apply transforms to raw spreadsheet data
@@ -646,6 +646,8 @@ function processAndLoadProducts(products, callback) {
 
     async.mapSeries(products, function(p, callback) {
 
+        console.log("product " + JSON.stringify(p));
+
         // Reference: http://okanjo.github.io/okanjo-docs/build/Products.html#POST /products
 
         /********************************
@@ -716,18 +718,28 @@ function processAndLoadProducts(products, callback) {
         // Uncomment these fields if  cause / donation should be used
 
         //TODO - need real cause_id 
-        productData.cause_id = 35861;       // ID of the cause e.g. api.getCauses()
-        productData.donation_perc = p["Percent_Donated"];  // A number ranging from 5 to 100, representing the percent donation of the sale
-
+        if (config.productData.causeId) {
+            productData.cause_id = config.productData.causeId || '';       // ID of the cause e.g. api.getCauses()
+        }
+        if (p["Percent_Donated"]) {
+            productData.donation_perc = p["Percent_Donated"] || 0;  // A number ranging from 5 to 100, representing the percent donation of the sale
+        }
 
         //
         // Optional: Tags ---------------------------------------------------------------------------------------------
         //
 
-//        productData.tags = [
-//            { id: 0 }, // By known tag id
-//            { name: 'WebGL' } // By tag name
-//        ];
+       productData.tags = [];
+
+        var tags = _.filter(_.keys(p), function(key) {return key.indexOf('Tag_') > -1;});
+
+        console.log("tags " + JSON.stringify(tags));
+
+        _.each(tags, function(t) {
+            productData.tags.push({ name: p[t] });
+        });
+
+        console.log("tag data for product is " + JSON.stringify(productData.tags));
 
         // // If tags were given on the row, add them by name
         // if (p.tags && p.tags.length > 0) {
@@ -738,10 +750,20 @@ function processAndLoadProducts(products, callback) {
         // }
 
         productData.meta = {
-            "vendor": "School Specialty",
-            "SKU": p["Tag_2"],
-            "UOM": p["Tag_3"]
+
+            // "vendor": "School Specialty",
+            // "SKU": p["Tag_2"],
+            // "UOM": p["Tag_3"]
         };
+
+        var metaKeys = _.filter(_.keys(p), function(key) {return key.indexOf('META_') > -1;});
+
+        console.log("meta data keys " + JSON.stringify(metaKeys));
+
+        _.each(metaKeys, function(key) {
+            var label = key.split('_')[1];
+            productData.meta[label] = p[key];
+        });
 
         console.log("meta data for product is " + JSON.stringify(productData.meta));
 
@@ -1015,7 +1037,7 @@ api.userLogin().data(config.user).execute(function(err, res) {
     if (res.status == okanjo.Response.Status.OK) {
 
         // Use the first store in the list (change this if the user has multiple stores)
-        global_store_id = res.data.user.stores[0].id; // TODO: <---- you may need to customize this store id
+        global_store_id = config.productData.storeId || res.data.user.stores[0].id; // TODO: <---- you may need to customize this store id
 
         // Use this user context with further API calls
         api.userToken = res.data.user_token;
