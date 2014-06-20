@@ -27,7 +27,7 @@ api.userLogin().data(config.user).execute(function(err, res) {
         api.userToken = res.data.user_token;
 
         // get all products for this store
-        //TODO - build this url dynamically
+        //TODO - build this url dynamically, possibly config driven
         request.get("https://sandbox-api.okanjo.com/products?key=TEST-AKEfqKSWps6QpDLVuZChWim3&store_id=5170&page_size=900&signature=1506bd11cab07eb1b2c1907c24508646c600ddbb72b17285bd871812d0c9b687",
         function(err, result, data) {
             if(result && result.body) {
@@ -54,6 +54,33 @@ api.userLogin().data(config.user).execute(function(err, res) {
             }
             
         });
+
+        // api.getProducts().where({store_id: 5170}).take(1000).execute(function(err, result) {
+        //     console.log(err);
+        //     console.log(result);
+        //     if(result && result.data) {
+        //         _.each(result.data, function(product){
+
+        //             var p = {
+        //                 status: 7
+        //             };
+        //             api.putProductById(product.id).data(p).execute(function(err, res) {
+        //                 if (err) { callback && callback(err); return; }
+
+        //                 if (res.status == okanjo.Response.Status.OK) {
+        //                     console.log('Delete issued for product ' + product.id );
+        //                     //callback && callback(null, res.data);
+        //                 } else {
+        //                     console.error('Failed to post product. Response:', res);
+        //                     //callback && callback(error);
+        //                 }
+        //             });
+        //         });
+        //     } else {
+        //         console.log("Unable to get products");
+        //     }
+            
+        // });
         
 
     } else {
