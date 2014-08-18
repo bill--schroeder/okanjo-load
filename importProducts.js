@@ -677,7 +677,8 @@ function processAndLoadProducts(products, callback) {
         };
 
         //remove html from description
-        var regex = /(<([^>]+)>)/ig
+        //var regex = /(<([^>]+)>)/ig
+        var regex = /<(.|\n)*?>/g
         productData.description = p["Description"].replace(regex, "");
 
         p.category = p["Cat_ID"];
@@ -767,6 +768,25 @@ function processAndLoadProducts(products, callback) {
         });
 
         console.log("meta data for product is " + JSON.stringify(productData.meta));
+
+
+/*
+console.log("call getProducts: " + productData.meta.SKU);
+         api.getProductById(productData.meta.SKU).execute(function(err, result) {
+console.log("*******   called getProducts");
+             console.log(err);
+             console.log(result);
+        //     if(result && result.data) {
+        //         _.each(result.data, function(product){
+
+        //         });
+        //     } else {
+        //         console.log("Unable to get products");
+        //     }
+            
+         });
+*/
+
 
         p.images = [
             p["Main_Image_URL"]
@@ -1037,12 +1057,20 @@ api.userLogin().data(config.user).execute(function(err, res) {
 
     if (res.status == okanjo.Response.Status.OK) {
 
-        // Use the first store in the list (change this if the user has multiple stores)
-        global_store_id = config.productData.storeId || res.data.user.stores[0].id; // TODO: <---- you may need to customize this store id
-
         // Use this user context with further API calls
         api.userToken = res.data.user_token;
 
+        if(process.argv.slice(2).length > 0) {
+            // print command-line parameter
+            console.log('command-line parameters: ' + process.argv.slice(2));
+            // the first command-line parameter is the store
+            global_store_id = process.argv.slice(2)[0];
+        } else {
+            // Use the first store in the list (change this if the user has multiple stores)
+            global_store_id = config.productData.storeId || res.data.user.stores[0].id; // TODO: <---- you may need to customize this store id
+        }
+        console.log('import products for store: ' + global_store_id);
+        
         //
         // BEGIN THE PROCESSING
         //
