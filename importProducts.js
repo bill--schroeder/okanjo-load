@@ -199,8 +199,24 @@ function mapCategory(product, callback) {
     var id = (function(product) {
 
         //mapping is done in the spreadsheet
-        
-        return product.category;
+
+        // TODO:  this API is being reworked by okanjo, so this will need to be updated
+        api.getCategories().where({ name: product.category, depth: "2" }).take(1).execute(function(err, response) {    
+            //console.log("getCategories: " + JSON.stringify(response));
+            if (response && response.status == okanjo.Response.Status.OK && response.data && response.data.length > 0) {    
+                id = response.data[0].id;
+
+                console.log("id is " + id);
+                callback && callback(null, id);
+
+            } else {
+                // TODO:  we need to create a new category and return it's new id
+                id = 11;
+
+                console.log("id is " + id);
+                callback && callback(null, id);
+            }
+        });
 
         // switch(product.category) {
         //     case "Art": return 2;
@@ -627,10 +643,6 @@ function mapCategory(product, callback) {
         // }
     })(product);
 
-    console.log("id is " + id);
-
-    callback && callback(null, id);
-
 }
 
 
@@ -673,14 +685,17 @@ function processAndLoadProducts(products, callback) {
             stock: p["Quantity"] != null ? p["Quantity"] : 0, // Use empty string "" to indicate an on-demand (infinite stock) item
 
             // Product condition - use brandNew or used
-            condition: okanjo.constants.productCondition.brandNew
+            condition: okanjo.constants.productCondition.brandNew,
+
+            shipping_options: []
         };
 
         //remove html from description
-        var regex = /<(.|\n)*?>/g
-        productData.description = p["Description"].replace(regex, "");
+        var regexHtml = /<(.|\n)*?>/g
+        var description = p["Description 1"] + p["Description 2"] + p["Description 3"] + p["Description 4"] + p["Description 5"] + p["Description 6"] + p["Description 7"] + p["Description 8"];
+        productData.description = description.replace(regexHtml, "");
 
-        p.category = p["Cat_ID"];
+        p.category = p["Category 1"];
 
         //
         // Required: Shipping options ---------------------------------------------------------------------------------
@@ -698,16 +713,24 @@ function processAndLoadProducts(products, callback) {
         // -or-
 
 
+        //productData.shipping_options.push({ description: p["Shipping_Policy"].replace(regexHtml, ""), price: parseFloat("0.00") });
+/*
+        productData.shipping_policy = { // Custom shipping policy
+           name: 'Shipping Description',
+           policy: p["Shipping_Policy"].replace(regexHtml, "")
+        };
+*/
+
         //
         // Required: Return Policy ------------------------------------------------------------------------------------
         //
 
         // Use these fields to specify the product's return policy
         //productData.return_policy = { id: 0 }; // Default return policy (no returns) or use a known ID for reuse
-       productData.return_policy = { // Custom return policy
+        productData.return_policy = { // Custom return policy
            name: 'Special Returns',
            policy: p["Return_Policy"]
-       };
+        };
 
 
         //
@@ -759,7 +782,7 @@ function processAndLoadProducts(products, callback) {
 
         var metaKeys = _.filter(_.keys(p), function(key) {return key.indexOf('META_') > -1;});
 
-        console.log("meta data keys " + JSON.stringify(metaKeys));
+        //console.log("meta data keys " + JSON.stringify(metaKeys));
 
         _.each(metaKeys, function(key) {
             var label = key.split('_')[1];
@@ -981,6 +1004,8 @@ function processAndLoadProducts(products, callback) {
 
                     // Post the product for REAL
                     
+                    console.log("full product detail: " + JSON.stringify(productData));
+
                     api.postProduct().data(productData).execute(function(err, res) {
                         if (err) { callback && callback(err); return; }
 
