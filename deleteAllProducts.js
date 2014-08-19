@@ -18,6 +18,23 @@ var okanjo = require('okanjo'),
 
 var api = new okanjo.Client(config.api);
 
+/**
+ * Stores the default store id of the logged-in user
+ * @type {number}
+ */
+var global_store_id = 0;
+
+function updateQueryStringParameter(uri, key, value) {
+  var re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
+  var separator = uri.indexOf('?') !== -1 ? "&" : "?";
+  if (uri.match(re)) {
+    return uri.replace(re, '$1' + key + "=" + value + '$2');
+  }
+  else {
+    return uri + separator + key + "=" + value;
+  }
+}
+
 api.userLogin().data(config.user).execute(function(err, res) {
     if (err) { console.error(err); return; }
 
@@ -26,14 +43,29 @@ api.userLogin().data(config.user).execute(function(err, res) {
         // Use this user context with further API calls
         api.userToken = res.data.user_token;
 
+        if(process.argv.slice(2).length > 0) {
+            // print command-line parameter
+            console.log('command-line parameters: ' + process.argv.slice(2));
+            // the first command-line parameter is the store
+            global_store_id = process.argv.slice(2)[0];
+        } else {
+            // Use the first store in the list (change this if the user has multiple stores)
+            global_store_id = config.productData.storeId || res.data.user.stores[0].id; // TODO: <---- you may need to customize this store id
+        }
+        console.log('delete products for store: ' + global_store_id);
+
+        var url = config.productData.deleteAllRoute;
+        url = updateQueryStringParameter(url, "store_id", global_store_id);
+        console.log('url: ' + url);
+
         // get all products for this store
-        //TODO - build this url dynamically, possibly config driven
-        request.get(config.productData.deleteAllRoute,
+        request.get(url,
         function(err, result, data) {
             if(result && result.body) {
                 var body = JSON.parse(result.body);
                 _.each(body, function(product){
-
+                    //console.log("product: " + JSON.stringify(product));
+                    
                     var p = {
                         status: 7
                     };
