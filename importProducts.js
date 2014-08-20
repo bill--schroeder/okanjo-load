@@ -916,7 +916,6 @@ function processAndLoadProducts(products, callback) {
                         // Required: Media ------------------------------------------------------------------------------------
                         //
 
-
                         async.mapSeries(p.images, function(img, cb) {
 
                             //
@@ -941,7 +940,9 @@ function processAndLoadProducts(products, callback) {
                                     //
                                     // Cached URL image upload
                                     //
-
+                                    
+                                    console.log('uploading cached image: ', tmpPath, tmpName);
+                                    
                                     var cachedFile = new okanjo.FileUpload(tmpPath, tmpName, mime.lookup(tmpPath), {
                                         purpose: okanjo.constants.mediaImagePurpose.product
                                     });
@@ -968,8 +969,10 @@ function processAndLoadProducts(products, callback) {
 
                                     var proto = info.protocol == 'https:' ? https : http;
 
-                                    console.log(img);
+                                    console.log('uploading image: ', tmpPath, tmpName);
+                                    console.log('image source: ', info);
 
+/*
                                     var dl = fs.createWriteStream(tmpPath);
 
                                     var r = request.get(img).pipe(dl);
@@ -986,7 +989,6 @@ function processAndLoadProducts(products, callback) {
                                             purpose: okanjo.constants.mediaImagePurpose.product
                                         });
 
-
                                         api.postMedia().data(downloadedFile).execute(function(err, res) {
                                             console.log(res);
                                             if (err) { 
@@ -1002,6 +1004,80 @@ function processAndLoadProducts(products, callback) {
                                             cb && cb(null, res.data.id);
                                         });
                                     });
+*/
+
+                                    var doDownload = function(options) {
+                                        console.log('doDownload', options);
+                                        var request = proto.get(info, function(res){
+                                            var imagedata = ''
+                                            res.setEncoding('binary')
+
+                                            res.on("error", function(err){
+                                                console.log('Failed to download image', err); cb(err); return;
+                                            });
+
+                                            res.on('data', function(chunk){
+                                                imagedata += chunk
+                                            })
+
+                                            res.on('end', function(){
+                                                //console.log('imagedata length', imagedata.length);
+                                                if(imagedata.length < 149)
+                                                {
+                                                    if(options && options < global_downloadImageRetryCount){
+                                                        process.nextTick(function() { 
+                                                            // failed downloading, so retry
+                                                            doDownload(options += 1);
+                                                        });
+                                                    } else {
+                                                        var err = 'failed downloading file'
+                                                        console.log(err); 
+                                                        if(global_saveProductWithoutImage) {
+                                                            cb(null, 239327); return; 
+                                                        } else {
+                                                            cb(err); return; 
+                                                        }
+                                                    }
+
+                                                } else {
+                                                    saveFile(tmpPath, tmpName, imagedata);
+                                                }
+                                            });
+                                        });
+                                    };
+
+                                    var saveFile = function(tmpPath, tmpName, imagedata) {
+                                        fs.writeFile(tmpPath, imagedata, 'binary', function(err){
+                                            if (err) {
+                                                console.log('Failed to download image', err); cb(err); return;
+                                            }
+
+                                            console.log('File saved.');
+
+                                            var downloadedFile = new okanjo.FileUpload(tmpPath, tmpName, mime.lookup(tmpPath), {
+                                                purpose: okanjo.constants.mediaImagePurpose.product
+                                            });
+
+                                            api.postMedia().data(downloadedFile).execute(function(err, res) {
+                                                console.log(res);
+                                                if (err) { 
+                                                    cb(null, 239327); 
+                                                    return;
+                                                }
+
+                                                if(res.status == 500 || res.status == 400) {
+                                                    cb(null, 239327); 
+                                                    return;
+                                                }
+                                                console.log(' > Uploaded url image', img, res.data.id);
+                                                cb && cb(null, res.data.id);
+                                            });
+
+                                        });                                        
+                                    };
+
+                                    doDownload(1);
+
                                 }
 
                             } else if (info.protocol == null) {
@@ -1085,10 +1161,10 @@ function processAndLoadProducts(products, callback) {
 }
 
 
+
 //
 // DO THE IMPORT ------------------------------------------------------------------------------------------------------
 //
-
 
 
 var api = new okanjo.Client(config.api);
@@ -1107,6 +1183,21 @@ var api = new okanjo.Client(config.api);
  * @type {number}
  */
 var global_store_id = 0;
+
+
+/**
+ * Sets if we should save a product if we can't download the image
+ * @type {boolean}
+ */
+var global_saveProductWithoutImage = true;
+
+
+/**
+ * Sets the number of retries to download an image if we're having any issues
+ * @type {integer}
+ */
+var global_downloadImageRetryCount = 3;
+
 
 api.userLogin().data(config.user).execute(function(err, res) {
     if (err) { console.error(err); return; }
