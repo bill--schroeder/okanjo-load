@@ -172,6 +172,48 @@ function getSourceProducts(callback) {
 
 
 /**
+ * Checks to see if a product already exists in Okanjo.
+ *
+ * This function should callback with two parameters:
+ * 1) err - should be null when no error was detected or an Error object if one was detected
+ * 2) id - ID of the product, if it exists
+ *
+ * You can be as creative as you would like to be here, since the product row is passed in,
+ * further lookups / processing can be done here.
+ *
+ * @param {*} product - The product row
+ * @param {function(err:Error, data:Number)} callback – Function called after the data has been retrieved
+ */
+function productExists(product, callback) {
+
+    /************************
+     * TODO: CUSTOMIZE THIS *
+     ************************/
+
+    var id = (function(product) {
+
+        // does product already exist
+        //console.log("getProducts product: " + JSON.stringify(product));
+        api.getProducts().where({ store_Id: global_store_id, 'meta.SKU': product.META_SKU }).take(1).execute(function(err, response) {        
+            console.log("getProducts: " + JSON.stringify(response));
+            if (response && response.status == okanjo.Response.Status.OK && response.data && response.data.length > 0 && response.data[0].status == 1) {    
+                id = response.data[0].id;
+
+                callback && callback(null, id);
+
+            } else {
+                // we need to create a new product
+                id = -1;
+
+                callback && callback(null, id);
+            }
+        });
+
+    })(product);
+
+}
+
+/**
  * Maps a local category to an Okanjo category.
  *
  * This function should callback with two parameters:
@@ -206,14 +248,12 @@ function mapCategory(product, callback) {
             if (response && response.status == okanjo.Response.Status.OK && response.data && response.data.length > 0) {    
                 id = response.data[0].id;
 
-                console.log("id is " + id);
                 callback && callback(null, id);
 
             } else {
                 // TODO:  we need to create a new category and return it's new id
                 id = 11;
 
-                console.log("id is " + id);
                 callback && callback(null, id);
             }
         });
@@ -658,7 +698,7 @@ function processAndLoadProducts(products, callback) {
 
     async.mapSeries(products, function(p, callback) {
 
-        console.log("product " + JSON.stringify(p));
+        console.log(" > starting product: " + JSON.stringify(p));
 
         // Reference: http://okanjo.github.io/okanjo-docs/build/Products.html#POST /products
 
@@ -709,17 +749,11 @@ function processAndLoadProducts(products, callback) {
 
         // Generic free shipping option 
         //TODO - all products are free shipping for now
-        productData.is_free_shipping = 1;
+        productData.is_free_shipping = 0;   // if this is a 1, then shipping_options can not be sent, otherwise the post will error
         // -or-
-
-
-        //productData.shipping_options.push({ description: p["Shipping_Policy"].replace(regexHtml, ""), price: parseFloat("0.00") });
-/*
-        productData.shipping_policy = { // Custom shipping policy
-           name: 'Shipping Description',
-           policy: p["Shipping_Policy"].replace(regexHtml, "")
-        };
-*/
+        if(productData.is_free_shipping == 0) {
+            productData.shipping_options.push({ description: p["Shipping_Policy"].replace(regexHtml, ""), price: parseFloat("0.00") });
+        }
 
         //
         // Required: Return Policy ------------------------------------------------------------------------------------
@@ -753,17 +787,17 @@ function processAndLoadProducts(products, callback) {
         // Optional: Tags ---------------------------------------------------------------------------------------------
         //
 
-       productData.tags = [];
+        productData.tags = [];
 
         var tags = _.filter(_.keys(p), function(key) {return key.indexOf('Tag_') > -1;});
 
-        console.log("tags " + JSON.stringify(tags));
+        //console.log("tags " + JSON.stringify(tags));
 
         _.each(tags, function(t) {
             productData.tags.push({ name: p[t] });
         });
 
-        console.log("tag data for product is " + JSON.stringify(productData.tags));
+        //console.log("tag data for product is " + JSON.stringify(productData.tags));
 
         // // If tags were given on the row, add them by name
         // if (p.tags && p.tags.length > 0) {
@@ -789,7 +823,7 @@ function processAndLoadProducts(products, callback) {
             productData.meta[label] = p[key];
         });
 
-        console.log("meta data for product is " + JSON.stringify(productData.meta));
+        //console.log("meta data for product is " + JSON.stringify(productData.meta));
 
         p.images = [
             p["Main_Image_URL"]
@@ -852,176 +886,193 @@ function processAndLoadProducts(products, callback) {
         // productData.variants[okanjo.serialize({ "Size": "Large", "Color": "Purple" }, true)] = { stock: "" }; // Example with on-demand (infinite) stock
 
         (function(productData){
-
+            
             //
-            // Required: Category -------------------------------------------------------------------------------------
+            // Required: Does product already exists -------------------------------------------------------------------------------------
             //
 
-            mapCategory(p, function(err, categoryId) {
+            productExists(p, function(err, productId) {
                 if (err) { callback && callback(err); return; }
 
-                // Assign mapped category id
-                console.log("cat id is " + categoryId);
-                console.log("err is " + err);
-                productData.category_id = categoryId;
+                if(productId > 0) {
+                    console.log("*** skip product load, since it already exists: " + productId + " | " + productData.title);
+                    callback && callback(null, productId);
 
-                //
-                // Required: Media ------------------------------------------------------------------------------------
-                //
-
-
-                async.mapSeries(p.images, function(img, cb) {
+                } else {
 
                     //
-                    // UPLOAD THE IMAGE
+                    // Required: Category -------------------------------------------------------------------------------------
                     //
 
-                    // NOTE: LOCAL FILE UPLOAD HERE - if you have a URI, perhaps you can programmatically get the image
-                    // and then upload it like so. e.g. http.get(uri)
+                    mapCategory(p, function(err, categoryId) {
+                        if (err) { callback && callback(err); return; }
 
-                    var info = url.parse(img),
-                        cleanName = sanitize(path.basename(info.pathname)),
-                        tmpName = 'TMP-IMG-'+crypto.createHash('md5').update(img).digest('hex')+'-'+cleanName+'.jpg';
-                        // tmpName = 'TMP-IMG-'+crypto.createHash('md5').update(img).digest('hex')+'.jpg';
-                    
-                    var tmpPath = path.join(__dirname, path.sep, 'images', path.sep, tmpName);
+                        // Assign mapped category id
+                        console.log("cat id is " + categoryId);
+                        //console.log("err is " + err);
+                        productData.category_id = categoryId;
 
-                    if (info.protocol == 'http:' || info.protocol == 'https:') {
+                        //
+                        // Required: Media ------------------------------------------------------------------------------------
+                        //
 
-                        // See if the image was already downloaded
-                        if (fs.existsSync(tmpPath)) {
+
+                        async.mapSeries(p.images, function(img, cb) {
 
                             //
-                            // Cached URL image upload
+                            // UPLOAD THE IMAGE
                             //
 
-                            var cachedFile = new okanjo.FileUpload(tmpPath, tmpName, mime.lookup(tmpPath), {
-                                purpose: okanjo.constants.mediaImagePurpose.product
-                            });
+                            // NOTE: LOCAL FILE UPLOAD HERE - if you have a URI, perhaps you can programmatically get the image
+                            // and then upload it like so. e.g. http.get(uri)
 
-                            api.postMedia().data(cachedFile).execute(function(err, res) {
-                                if (err) { 
-                                    cb(null, 239327); 
-                                    return;
+                            var info = url.parse(img),
+                                cleanName = sanitize(path.basename(info.pathname)),
+                                tmpName = 'TMP-IMG-'+crypto.createHash('md5').update(img).digest('hex')+'-'+cleanName+'.jpg';
+                                // tmpName = 'TMP-IMG-'+crypto.createHash('md5').update(img).digest('hex')+'.jpg';
+                            
+                            var tmpPath = path.join(__dirname, path.sep, 'images', path.sep, tmpName);
+
+                            if (info.protocol == 'http:' || info.protocol == 'https:') {
+
+                                // See if the image was already downloaded
+                                if (fs.existsSync(tmpPath)) {
+
+                                    //
+                                    // Cached URL image upload
+                                    //
+
+                                    var cachedFile = new okanjo.FileUpload(tmpPath, tmpName, mime.lookup(tmpPath), {
+                                        purpose: okanjo.constants.mediaImagePurpose.product
+                                    });
+
+                                    api.postMedia().data(cachedFile).execute(function(err, res) {
+                                        if (err) { 
+                                            cb(null, 239327); 
+                                            return;
+                                        }
+
+                                        if(res.status == 500 || res.status == 400) {
+                                            cb(null, 239327); 
+                                            return;
+                                        }
+                                        console.log(' > Uploaded cached image', tmpPath, res.data.id);
+                                        cb && cb(null, res.data.id);
+                                    });
+
+                                } else {
+
+                                    //
+                                    // Download it
+                                    //
+
+                                    var proto = info.protocol == 'https:' ? https : http;
+
+                                    console.log(img);
+
+                                    var dl = fs.createWriteStream(tmpPath);
+
+                                    var r = request.get(img).pipe(dl);
+
+                                    r.on("error", function(err){
+                                        console.log('Failed to upload image', err); cb(err); return;
+                                    });
+
+                                    dl.on('finish', function(){
+                                        //explicitly kill the stream if it hasn't closed yet
+                                        //dl.end();
+
+                                        var downloadedFile = new okanjo.FileUpload(tmpPath, tmpName, mime.lookup(tmpPath), {
+                                            purpose: okanjo.constants.mediaImagePurpose.product
+                                        });
+
+
+                                        api.postMedia().data(downloadedFile).execute(function(err, res) {
+                                            console.log(res);
+                                            if (err) { 
+                                                cb(null, 239327); 
+                                                return;
+                                            }
+
+                                            if(res.status == 500 || res.status == 400) {
+                                                cb(null, 239327); 
+                                                return;
+                                            }
+                                            console.log(' > Uploaded url image', img, res.data.id);
+                                            cb && cb(null, res.data.id);
+                                        });
+                                    });
                                 }
 
-                                if(res.status == 500 || res.status == 400) {
-                                    cb(null, 239327); 
-                                    return;
-                                }
-                                console.log(' > Uploaded cached image', tmpPath, res.data.id);
-                                cb && cb(null, res.data.id);
-                            });
+                            } else if (info.protocol == null) {
 
-                        } else {
+                                //
+                                // LOCAL FILE PATH
+                                //
 
-                            //
-                            // Download it
-                            //
-
-                            var proto = info.protocol == 'https:' ? https : http;
-
-                            console.log(img);
-
-                            var dl = fs.createWriteStream(tmpPath);
-
-                            var r = request.get(img).pipe(dl);
-
-                            r.on("error", function(err){
-                                console.log('Failed to upload image', err); cb(err); return;
-                            });
-
-                            dl.on('finish', function(){
-                                //explicitly kill the stream if it hasn't closed yet
-                                //dl.end();
-
-                                var downloadedFile = new okanjo.FileUpload(tmpPath, tmpName, mime.lookup(tmpPath), {
+                                var file = new okanjo.FileUpload(img, path.basename(img), mime.lookup(img), {
                                     purpose: okanjo.constants.mediaImagePurpose.product
                                 });
 
+                                api.postMedia().data(file).execute(function(err, res) {
+                                    if (err) { console.log('Failed to upload image line 970ish', err, res); cb(err); return; }
 
-                                api.postMedia().data(downloadedFile).execute(function(err, res) {
-                                    console.log(res);
-                                    if (err) { 
-                                        cb(null, 239327); 
-                                        return;
-                                    }
-
-                                    if(res.status == 500 || res.status == 400) {
-                                        cb(null, 239327); 
-                                        return;
-                                    }
-                                    console.log(' > Uploaded url image', img, res.data.id);
+                                    console.log(' > Uploaded local image', img, res.data.id);
                                     cb && cb(null, res.data.id);
                                 });
+
+                            } else {
+                                console.error('Unknown image protocol or is not a HTTP/HTTPS URL or local file path?', img);
+                                callback && callback(new Error('Unknown image protocol or is not a HTTP/HTTPS URL or local file path: '+ img));
+                            }
+
+                        }, function(err, media) {
+                            if (err) { callback && callback(); return; }
+
+                            // Media IDs of the uploaded images to use
+
+                            productData.media = media;
+
+                            // Which media ID to use as the default image / tile image
+                            productData.thumbnail_media_id = media[0]; // <-- This defaults to the first image index
+
+
+                            //
+                            // SEND TO OKANJO ---------------------------------------------------------------------------------
+                            //
+
+                            // IF YOU JUST WANT TO DEBUG:
+                            // * Uncomment the callback line below
+                            // * Comment-out the api.postProduct call
+
+                            // Just return the product for testing
+                            // console.log(productData);
+                            // callback && callback(null, productData);
+
+                            // Post the product for REAL
+                            
+                            //console.log("full product detail: " + JSON.stringify(productData));
+
+                            api.postProduct().data(productData).execute(function(err, res) {
+                                if (err) { callback && callback(err); return; }
+
+                                if (res.status == okanjo.Response.Status.OK) {
+                                    console.log(' > Uploaded product', res.data.id);
+                                    console.log(' > Meta data for product ' + res.data.id + ' is ' + JSON.stringify(res.data.meta));
+                                    callback && callback(null, res.data);
+                                } else {
+                                    console.error('Failed to post product. Response:', res);
+                                    var error = new Error('ERROR: Product posting failed');
+                                    error.response = res;
+                                    callback && callback(error);
+                                }
                             });
-                        }
 
-                    } else if (info.protocol == null) {
-
-                        //
-                        // LOCAL FILE PATH
-                        //
-
-                        var file = new okanjo.FileUpload(img, path.basename(img), mime.lookup(img), {
-                            purpose: okanjo.constants.mediaImagePurpose.product
                         });
 
-                        api.postMedia().data(file).execute(function(err, res) {
-                            if (err) { console.log('Failed to upload image line 970ish', err, res); cb(err); return; }
-
-                            console.log(' > Uploaded local image', img, res.data.id);
-                            cb && cb(null, res.data.id);
-                        });
-
-                    } else {
-                        console.error('Unknown image protocol or is not a HTTP/HTTPS URL or local file path?', img);
-                        callback && callback(new Error('Unknown image protocol or is not a HTTP/HTTPS URL or local file path: '+ img));
-                    }
-
-                }, function(err, media) {
-                    if (err) { callback && callback(); return; }
-
-                    // Media IDs of the uploaded images to use
-
-                    productData.media = media;
-
-                    // Which media ID to use as the default image / tile image
-                    productData.thumbnail_media_id = media[0]; // <-- This defaults to the first image index
-
-
-                    //
-                    // SEND TO OKANJO ---------------------------------------------------------------------------------
-                    //
-
-                    // IF YOU JUST WANT TO DEBUG:
-                    // * Uncomment the callback line below
-                    // * Comment-out the api.postProduct call
-
-                    // Just return the product for testing
-                    // console.log(productData);
-                    // callback && callback(null, productData);
-
-                    // Post the product for REAL
-                    
-                    console.log("full product detail: " + JSON.stringify(productData));
-
-                    api.postProduct().data(productData).execute(function(err, res) {
-                        if (err) { callback && callback(err); return; }
-
-                        if (res.status == okanjo.Response.Status.OK) {
-                            console.log(' > Uploaded product', res.data.id);
-                            console.log('Meta data for product is ' + JSON.stringify(res.data.meta));
-                            callback && callback(null, res.data);
-                        } else {
-                            console.error('Failed to post product. Response:', res);
-                            var error = new Error('Product posting failed');
-                            error.response = res;
-                            callback && callback(error);
-                        }
                     });
 
-                });
+                }
 
             });
 
