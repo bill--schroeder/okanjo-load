@@ -52,6 +52,10 @@ var okanjo = require('okanjo'),
     csv = require('fast-csv'),
     _ = require('underscore');
 
+// grab any command line parameters
+var argv = require('minimist')(process.argv.slice(2));
+console.log('command-line parameters: ', argv);
+
 
 /**
  * This is where you should integrate with your data source to all the data you need to create products
@@ -196,7 +200,7 @@ function productExists(product, callback) {
         // does product already exist
         //console.log("getProducts product: " + JSON.stringify(product));
         api.getProducts().where({ store_Id: global_store_id, 'meta.SKU': product.META_SKU }).take(1).execute(function(err, response) {        
-            console.log("getProducts: " + JSON.stringify(response));
+            //console.log("getProducts: " + JSON.stringify(response));
             if (response && response.status == okanjo.Response.Status.OK && response.data && response.data.length > 0 && response.data[0].status == 1) {    
                 id = response.data[0].id;
 
@@ -912,17 +916,18 @@ function saveProduct(product, callback) {
 
     // Post the product for REAL
     
-    console.log("full product detail: " + JSON.stringify(product));
+    //console.log("full product detail: " + JSON.stringify(product));
 
     if(product.id) {
         // update product
         api.putProductById(product.id).data(product).execute(function(err, res) {
             if (err) { callback && callback(err); return; }
 
-            if (res.status == okanjo.Response.Status.OK) {
-                console.log(' > Updated product', res.data.id);
-                console.log(' > Meta data for product ' + res.data.id + ' is ' + JSON.stringify(res.data.meta));
-                callback && callback(null, res.data);
+            //console.log("putProductById res: " + JSON.stringify(res));
+
+            if (res.status == okanjo.Response.Status.OK && res.data && res.data.type == "success") {
+                console.log(' > Updated product', product.id);
+                callback && callback(null, product);
 
             } else {
                 console.error('Failed to update product. Response:', res);
@@ -1062,7 +1067,9 @@ function processAndLoadProducts(products, callback) {
         //console.log("tags " + JSON.stringify(tags));
 
         _.each(tags, function(t) {
-            productData.tags.push({ name: p[t] });
+            if(p[t]){
+                productData.tags.push({ name: p[t] });
+            }
         });
 
         //console.log("tag data for product is " + JSON.stringify(productData.tags));
@@ -1158,8 +1165,15 @@ function processAndLoadProducts(products, callback) {
             saveProductImages(p, function(err, media){
                 if (err) { callback && callback(err); return; }
 
-                if(global_downloadProductImagesOnly){
-                    callback && callback(err, 'skipping product load');
+                if(!global_saveProductWithoutImage && !media){
+                    var msg = "skipping product load, since we couldn't download image";
+                    console.log(msg);
+                    callback && callback(err, msg);
+
+                } else if(global_downloadProductImagesOnly){
+                    var msg = "skipping product load";
+                    console.log(msg);
+                    callback && callback(err, msg);
 
                 } else {
                     // Media IDs of the uploaded images to use
@@ -1244,36 +1258,41 @@ var api = new okanjo.Client(config.api);
 /**
  * Stores the default store id of the logged-in user
  * @type {number}
+ * valid cli:  --store or -s
  */
-var global_store_id = 0;
+var global_store_id = (argv.store ? argv.store : (argv.s ? argv.s : (config.productData.storeId ? config.productData.storeId : res.data.user.stores[0].id)));
 
 
 /**
  * Sets if we should just download product images
  * @type {boolean}
+ * valid cli:  --images
  */
-var global_downloadProductImagesOnly = false;
+var global_downloadProductImagesOnly = (argv.images ? true : false);
 
 
 /**
  * Sets if we should save a product if we can't download the image
  * @type {boolean}
+ * valid cli:  --needimages
  */
-var global_saveProductWithoutImage = true;
+var global_saveProductWithoutImage = (argv.needimages ? false : true);
 
 
 /**
  * Sets the number of retries to download an image if we're having any issues
  * @type {integer}
+ * valid cli:  --retry or -r
  */
-var global_downloadImageRetryCount = 3;
+var global_downloadImageRetryCount = (argv.retry ? argv.retry : (argv.r ? argv.r : 3));     
 
 
 /**
  * Sets if we should allow product updates
  * @type {boolean}
+ * valid cli:  --updates
  */
-var global_allowProductUpdates = false;
+var global_allowProductUpdates = (argv.updates ? true : false);
 
 
 api.userLogin().data(config.user).execute(function(err, res) {
@@ -1284,16 +1303,10 @@ api.userLogin().data(config.user).execute(function(err, res) {
         // Use this user context with further API calls
         api.userToken = res.data.user_token;
 
-        if(process.argv.slice(2).length > 0) {
-            // print command-line parameter
-            console.log('command-line parameters: ' + process.argv.slice(2));
-            // the first command-line parameter is the store
-            global_store_id = process.argv.slice(2)[0];
-        } else {
-            // Use the first store in the list (change this if the user has multiple stores)
-            global_store_id = config.productData.storeId || res.data.user.stores[0].id; // TODO: <---- you may need to customize this store id
-        }
-        console.log('import products for store: ' + global_store_id);
+        console.log('import products for store: ', global_store_id);
+        console.log('just download images: ', global_downloadProductImagesOnly);
+        console.log('save products without images: ', global_saveProductWithoutImage);
+        console.log('image download retries: ', global_downloadImageRetryCount);
 
         //
         // BEGIN THE PROCESSING

@@ -15,14 +15,20 @@ var okanjo = require('okanjo'),
     _ = require('underscore')._,
     csv = require('fast-csv');
 
+// grab any command line parameters
+var argv = require('minimist')(process.argv.slice(2));
+console.log('command-line parameters: ', argv);
+
 
 var api = new okanjo.Client(config.api);
 
 /**
  * Stores the default store id of the logged-in user
  * @type {number}
+ * valid cli:  --store or -s
  */
-var global_store_id = 0;
+var global_store_id = (argv.store ? argv.store : (argv.s ? argv.s : (config.productData.storeId ? config.productData.storeId : res.data.user.stores[0].id)));
+
 
 function updateQueryStringParameter(uri, key, value) {
   var re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
@@ -43,16 +49,7 @@ api.userLogin().data(config.user).execute(function(err, res) {
         // Use this user context with further API calls
         api.userToken = res.data.user_token;
 
-        if(process.argv.slice(2).length > 0) {
-            // print command-line parameter
-            console.log('command-line parameters: ' + process.argv.slice(2));
-            // the first command-line parameter is the store
-            global_store_id = process.argv.slice(2)[0];
-        } else {
-            // Use the first store in the list (change this if the user has multiple stores)
-            global_store_id = config.productData.storeId || res.data.user.stores[0].id; // TODO: <---- you may need to customize this store id
-        }
-        console.log('delete products for store: ' + global_store_id);
+        console.log('delete products for store: ', global_store_id);
 
         var url = config.productData.deleteAllRoute;
         url = updateQueryStringParameter(url, "store_id", global_store_id);
