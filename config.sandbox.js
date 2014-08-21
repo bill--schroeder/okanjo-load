@@ -9,7 +9,7 @@ module.exports = exports = {
     user: {
         action: okanjo.constants.loginAction.loginUsernamePassword,
         username: 'huterratestuser',
-        password: 'Hut3rra!Admin'
+        password: 'Admin1'
     },
     productData: {
       storeId: 5170,
