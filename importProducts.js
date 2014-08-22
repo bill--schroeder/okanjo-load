@@ -318,10 +318,10 @@ function saveProductImages(product, callback) {
                             if(imagedata.length < 149)
                             {
                                 if(options && options < global_downloadImageRetryCount){
-                                    process.nextTick(function() { 
+                                    setTimeout(function(){
                                         // failed downloading, so retry
                                         doDownload(options += 1);
-                                    });
+                                    }, 1000);                                    
                                 } else {
                                     var err = 'failed downloading file'
                                     console.log(err); 
