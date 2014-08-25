@@ -261,7 +261,11 @@ function saveProductImages(product, callback) {
         if (info.protocol == 'http:' || info.protocol == 'https:') {
 
             // See if the image was already downloaded
-            if (fs.existsSync(tmpPath) && !global_downloadProductImagesOnly) {
+            if (fs.existsSync(tmpPath) && global_downloadProductImagesOnly) {
+                console.log('product image is already cached, so skipping the download');
+                cb(null, 239327);
+
+            } else if (fs.existsSync(tmpPath) && !global_downloadProductImagesOnly) {
 
                 //
                 // Cached URL image upload
@@ -348,7 +352,7 @@ function saveProductImages(product, callback) {
                         console.log('File saved.');
 
                         if(global_downloadProductImagesOnly){
-                            console.log('Skipping product upload');
+                            console.log('Skipping product image upload');
                             cb(null, 239327); 
 
                         } else {
