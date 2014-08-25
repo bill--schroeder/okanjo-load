@@ -199,7 +199,8 @@ function productExists(product, callback) {
 
         // does product already exist
         //console.log("getProducts product: " + JSON.stringify(product));
-        api.getProducts().where({ store_Id: global_store_id, 'meta.SKU': product.META_SKU }).take(1).execute(function(err, response) {        
+        //console.log("productExists store_Id " + global_store_id + " - sku: " + product.META_SKU);
+        api.getProducts().where({ store_id: global_store_id, 'meta.SKU': product.META_SKU }).take(1).execute(function(err, response) {        
             //console.log("getProducts: " + JSON.stringify(response));
             if (response && response.status == okanjo.Response.Status.OK && response.data && response.data.length > 0 && response.data[0].status == 1) {    
                 id = response.data[0].id;
@@ -444,20 +445,22 @@ function mapCategory(product, callback) {
     var id = (function(product) {
 
         // TODO:  this API is being reworked by okanjo, so this will need to be updated
-        api.getCategories().where({ name: product.category, depth: "2" }).take(1).execute(function(err, response) {    
+        id = 10;
+        callback && callback(null, id);
+        /*
+        api.getCategories().where({ name: product.category, depth: "1" }).take(1).execute(function(err, response) {    
             //console.log("getCategories: " + JSON.stringify(response));
             if (response && response.status == okanjo.Response.Status.OK && response.data && response.data.length > 0) {    
                 id = response.data[0].id;
-
                 callback && callback(null, id);
 
             } else {
                 // TODO:  we need to create a new category and return it's new id
-                id = 11;
-
+                id = 10;
                 callback && callback(null, id);
             }
         });
+        */
 
         // switch(product.category) {
         //     case "Art": return 2;
@@ -1075,6 +1078,13 @@ function processAndLoadProducts(products, callback) {
                 productData.tags.push({ name: p[t] });
             }
         });
+        
+        // TODO:  remove this once categories are mapped
+        for (i = 0; i < 5; i++) { 
+            if(p["Category " + i]){
+                productData.tags.push({ name: p["Category " + i].toUpperCase() });
+            }
+        }
 
         //console.log("tag data for product is " + JSON.stringify(productData.tags));
 
