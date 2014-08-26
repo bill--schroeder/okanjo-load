@@ -263,7 +263,7 @@ function saveProductImages(product, callback) {
 
             // See if the image was already downloaded
             if (fs.existsSync(tmpPath) && global_downloadProductImagesOnly) {
-                console.log('product image is already cached, so skipping the download');
+                console.log('product image is already cached, so skipping the download', img);
                 cb(null, 239327);
 
             } else if (fs.existsSync(tmpPath) && !global_downloadProductImagesOnly) {
@@ -926,24 +926,31 @@ function saveProduct(product, callback) {
 
     // Post the product for REAL
     
-    //console.log("full product detail: " + JSON.stringify(product));
+    //console.log("saveProduct detail: ", product);
 
-    if(product.id) {
+    var returnError = function(msg, err, res) {
+        console.error('Failed to ' + msg + ' product. Response:', res);
+        console.log('full product detail: ', product);
+
+        var error = new Error('ERROR: Product ' + msg + ' failed!');
+        error.response = JSON.stringify(res);
+        error.product = JSON.stringify(product);
+        errors.push(error);
+
+        callback && callback(null, error);
+    }
+
+    if(product.id && product.id > 0) {
         // update product
         api.putProductById(product.id).data(product).execute(function(err, res) {
             if (err) { callback && callback(err); return; }
 
-            //console.log("putProductById res: " + JSON.stringify(res));
-
             if (res.status == okanjo.Response.Status.OK && res.data && res.data.type == "success") {
-                console.log(' > Updated product', product.id);
+                console.log(' > Updated product:', product.id);
                 callback && callback(null, product);
 
             } else {
-                console.error('Failed to update product. Response:', res);
-                var error = new Error('ERROR: Product update failed');
-                error.response = res;
-                callback && callback(error);
+                returnError('update', err, res);
             }
         });
 
@@ -953,15 +960,12 @@ function saveProduct(product, callback) {
             if (err) { callback && callback(err); return; }
 
             if (res.status == okanjo.Response.Status.OK) {
-                console.log(' > Uploaded product', res.data.id);
-                console.log(' > Meta data for product ' + res.data.id + ' is ' + JSON.stringify(res.data.meta));
+                console.log(' > Added product:', res.data.id);
+                //console.log(' > Meta data for product ' + res.data.id + ' is ' + JSON.stringify(res.data.meta));
                 callback && callback(null, res.data);
 
             } else {
-                console.error('Failed to post product. Response:', res);
-                var error = new Error('ERROR: Product posting failed');
-                error.response = res;
-                callback && callback(error);
+                returnError('add', err, res);
             }
         });
     }
@@ -981,7 +985,7 @@ function processAndLoadProducts(products, callback) {
 
     async.mapSeries(products, function(p, callback) {
 
-        console.log(" > starting product: " + JSON.stringify(p));
+        //console.log(" > starting product: " + JSON.stringify(p));
 
         // Reference: http://okanjo.github.io/okanjo-docs/build/Products.html#POST /products
 
@@ -1179,72 +1183,91 @@ function processAndLoadProducts(products, callback) {
 
         (function(productData){
 
-            saveProductImages(p, function(err, media){
-                if (err) { callback && callback(err); return; }
+            if(global_downloadProductImagesOnly){
+                // only download images
+                saveProductImages(p, function(err, media){
+                    if (err) { callback && callback(err); return; }
 
-                if(!global_saveProductWithoutImage && !media){
-                    var msg = "skipping product load, since we couldn't download image";
-                    console.log(msg);
-                    callback && callback(err, msg);
+                    if(!global_saveProductWithoutImage && !media){
+                        var msg = "skipping product load, since we couldn't download image";
+                        console.log(msg);
+                        callback && callback(err, msg);
 
-                } else if(global_downloadProductImagesOnly){
-                    var msg = "skipping product load";
-                    console.log(msg);
-                    callback && callback(err, msg);
+                    } else {
+                        var msg = "skipping product load";
+                        //console.log(msg);
+                        callback && callback(err, msg);
+                    }
+                });
 
-                } else {
-                    // Media IDs of the uploaded images to use
-                    productData.media = media;
+            } else {
+                // check if product exists befor doing anything for faster processing
+                productExists(p, function(err, productId) {
+                    if (err) { callback && callback(err); return; }
 
-                    // Which media ID to use as the default image / tile image
-                    productData.thumbnail_media_id = media[0]; // <-- This defaults to the first image index
+                    if(!global_allowProductUpdates && productId > 0) {
+                        console.log("*** skip product load, since it already exists: " + productId + " | " + productData.META_SKU + " | " + productData.title);
+                        callback && callback(null, productId);
 
+                    } else {
+                        console.log(" > starting product: " + JSON.stringify(p));
 
-                    productExists(p, function(err, productId) {
-                        if (err) { callback && callback(err); return; }
-
-                        if(!global_allowProductUpdates && productId > 0) {
-                            console.log("*** skip product load, since it already exists: " + productId + " | " + productData.title);
-                            callback && callback(null, productId);
-
-                        } else if(global_allowProductUpdates && productId > 0) {
-                            console.log("******* update product: " + productId + " | " + productData.title);
-                            
-                            productData.id = productId;
-
-                            mapCategory(p, function(err, categoryId) {
-                                if (err) { callback && callback(err); return; }
-
-                                // Assign mapped category id
-                                console.log("cat id is " + categoryId);
-                                productData.category_id = categoryId;
+                        productData.id = productId;
 
 
-                                saveProduct(productData, function(err, result){
-                                    if (err) { callback && callback(err); return; }
-                                    callback && callback(err, result);
-                                });                            
-                            });
+                        saveProductImages(p, function(err, media){
+                            if (err) { callback && callback(err); return; }
 
-                        } else {
+                            if(!global_saveProductWithoutImage && !media){
+                                var msg = "skipping product load, since we couldn't download image";
+                                console.log(msg);
+                                callback && callback(err, msg);
 
-                            mapCategory(p, function(err, categoryId) {
-                                if (err) { callback && callback(err); return; }
+                            } else {
+                                // Media IDs of the uploaded images to use
+                                productData.media = media;
 
-                                // Assign mapped category id
-                                console.log("cat id is " + categoryId);
-                                productData.category_id = categoryId;
+                                // Which media ID to use as the default image / tile image
+                                productData.thumbnail_media_id = media[0]; // <-- This defaults to the first image index
 
 
-                                saveProduct(productData, function(err, result){
-                                    if (err) { callback && callback(err); return; }
-                                    callback && callback(err, result);
-                                });                            
-                            });
-                        }
-                    });
-                }
-            });
+                                if(global_allowProductUpdates && productId > 0) {
+                                    console.log("product id: " + productData.id);
+
+                                    mapCategory(p, function(err, categoryId) {
+                                        if (err) { callback && callback(err); return; }
+
+                                        // Assign mapped category id
+                                        console.log("cat id: " + categoryId);
+                                        productData.category_id = categoryId;
+
+
+                                        saveProduct(productData, function(err, result){
+                                            if (err) { callback && callback(err); return; }
+                                            callback && callback(err, result);
+                                        });                            
+                                    });
+
+                                } else {
+                                    mapCategory(p, function(err, categoryId) {
+                                        if (err) { callback && callback(err); return; }
+
+                                        // Assign mapped category id
+                                        console.log("cat id is " + categoryId);
+                                        productData.category_id = categoryId;
+
+
+                                        saveProduct(productData, function(err, result){
+                                            if (err) { callback && callback(err); return; }
+                                            callback && callback(err, result);
+                                        });                            
+                                    });
+                                }
+                            }
+                        });
+                    }
+                });
+            }
 
         })(productData);
 
@@ -1312,6 +1335,8 @@ var global_downloadImageRetryCount = (argv.retry ? argv.retry : (argv.r ? argv.r
 var global_allowProductUpdates = (argv.updates ? true : false);
 
 
+var errors = [];
+
 api.userLogin().data(config.user).execute(function(err, res) {
     if (err) { console.error(err); return; }
 
@@ -1335,7 +1360,15 @@ api.userLogin().data(config.user).execute(function(err, res) {
             processAndLoadProducts(data, function(err, products) {
                 if (err) { console.error('Failed to map products', err); return; }
 
-                //console.log('COMPLETED OKANJO PRODUCTS:', products);
+                if(errors && errors.length) {
+                    console.log('ERRORS!', errors.length, errors);
+                    //for (var i = 0; i < errors.length; i++) {
+                    //} 
+
+                } else {
+                    console.log('COMPLETED OKANJO PRODUCTS:', products.length);
+                }
+
                 console.log('DONE!');
                 process.exit(0);
 
