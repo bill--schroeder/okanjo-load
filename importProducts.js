@@ -401,7 +401,7 @@ function saveProductImages(product, callback) {
 
         } else {
             console.error('Unknown image protocol or is not a HTTP/HTTPS URL or local file path?', JSON.stringify(img));
-            callback && callback(new Error('Unknown image protocol or is not a HTTP/HTTPS URL or local file path: '+ img));
+            cb(null, 239327);
         }
 
     }, function(err, media) {
