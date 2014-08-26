@@ -326,7 +326,7 @@ function saveProductImages(product, callback) {
                                     setTimeout(function(){
                                         // failed downloading, so retry
                                         doDownload(options += 1);
-                                    }, 1000);                                    
+                                    }, 1500);                                    
                                 } else {
                                     var err = 'failed downloading file'
                                     console.log(err); 

@@ -84,9 +84,9 @@ api.on('log', function(level, message, args) {
       //var timer = setInterval(function() {
         //api.getProductById(Id).execute(function(err, response) {
         //api.getProducts().where({ available: 1, type: 1 }).take(5).execute(function(err, response) {
-        //api.getProducts().where({store_id: store_Id}).take(1000).execute(function(err, response) {        
+        api.getProducts().where({store_id: store_Id}).take(1000).execute(function(err, response) {        
         //api.getProducts().where({ store_id: store_Id, meta: { SKU: SKU } }).take(1).execute(function(err, response) {        
-        api.getProducts().where({ store_id: store_Id, 'meta.SKU': SKU }).take(1).execute(function(err, response) {        
+        //api.getProducts().where({ store_id: store_Id, 'meta.SKU': SKU }).take(1).execute(function(err, response) {        
         //api.getCategories().where({ name: category, depth: "2" }).take(1).execute(function(err, response) {        
         //api.putProductById(SKU).data(p).execute(function(err, response) {
 
