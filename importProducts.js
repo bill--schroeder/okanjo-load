@@ -405,9 +405,12 @@ function saveProductImages(product, callback) {
         }
 
     }, function(err, media) {
-        if (err) { callback && callback(); return; }
+        //setTimeout is used because we receive "RangeError: Maximum call stack size exceeded" with large amounts of products
+        setTimeout(function(){
+            if (err) { callback && callback(); return; }
 
-        callback && callback(null, media);
+            callback && callback(null, media);
+        }, 100);  
     });
 
 }
@@ -1001,7 +1004,7 @@ function processAndLoadProducts(products, callback) {
             // Basic info
             title: p["Title"] || 'Product title',
             //description: p["Description"] || 'Product\nDescription',
-            price: p["Price"] && p["Price"] > 0 ? parseFloat(p["Price"]) : 1, // USD between 1 and 9000
+            price: p["Price"] && (p["Price"] > 0 || p["Price"] != "") ? parseFloat(p["Price"].replace(/[$,]+/g,"")) : 1, // USD between 1 and 9000
             stock: p["Quantity"] != null ? p["Quantity"] : 0, // Use empty string "" to indicate an on-demand (infinite stock) item
 
             // Product condition - use brandNew or used
