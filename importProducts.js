@@ -382,7 +382,7 @@ function saveProductImages(product, callback) {
 
             }
 
-        } else if (info.protocol == null) {
+        } else if (info.protocol == null && info.pathname != null) {
 
             //
             // LOCAL FILE PATH
@@ -400,7 +400,7 @@ function saveProductImages(product, callback) {
             });
 
         } else {
-            console.error('Unknown image protocol or is not a HTTP/HTTPS URL or local file path?', img);
+            console.error('Unknown image protocol or is not a HTTP/HTTPS URL or local file path?', JSON.stringify(img));
             callback && callback(new Error('Unknown image protocol or is not a HTTP/HTTPS URL or local file path: '+ img));
         }
 
